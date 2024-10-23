@@ -43,19 +43,6 @@ pip install -r requirements.txt
 ```bash
 streamlit run plm.py
 ```
-
-## 📝 Credenciais de Teste
-
-### Administrador
-- Email: admin@email.com
-- Senha: admin123
-
-### Estudante
-- Email: estudante@email.com
-- Senha: senha123
-
-## 📜 Licença
-
 Este projeto está licenciado sob a Licença MIT - veja o arquivo [LICENSE](LICENSE) para detalhes
 
 ## ✨ Desenvolvido por
