@@ -32,8 +32,8 @@ def extract_youtube_id(url):
 # Função para extrair ID do arquivo do Google Drive
 def extract_drive_id(url):
     patterns = [
-        r'/file/d/([a-zA-Z0-9_-]+)',
-        r'id=([a-zA-Z0-9_-]+)',
+        r'(?:/file/d/|id=|/d/)([a-zA-Z0-9_-]+)',
+        r'drive\.google\.com/open\?id=([a-zA-Z0-9_-]+)',
     ]
     
     for pattern in patterns:
@@ -59,6 +59,14 @@ if 'initialized' not in st.session_state:
         'type': 'youtube'
     }
     
+    # Exemplo de PDF pré-carregado do Google Drive
+    drive_example = "https://drive.google.com/file/d/seu_id_aqui/view"
+    pdf_key = "curso1_lesson_1_pdf"
+    st.session_state.course_files[pdf_key] = {
+        'content': extract_drive_id(drive_example),
+        'type': 'google_drive'
+    }
+    
     # Inicializar banco de dados de usuários
     st.session_state.users_db = {
         'admin@email.com': {
@@ -76,24 +84,45 @@ if 'initialized' not in st.session_state:
         }
     }
     
-    # Inicializar banco de dados de cursos
+    # Inicializar banco de dados de cursos com quiz de exemplo
     st.session_state.courses_db = {
-        f'curso{i}': {
+        'curso1': {
+            'name': 'Curso 1',
+            'topics': "Tópicos do Curso 1",
+            'lessons': {
+                1: {
+                    'video': {
+                        'details': {"Type": "youtube"},
+                        'file_key': "curso1_lesson_1_video"
+                    },
+                    'pdf': {
+                        'details': {"Type": "google_drive"},
+                        'file_key': "curso1_lesson_1_pdf"
+                    }
+                }
+            },
+            'quizzes': {
+                1: [
+                    {"question": "Qual é a primeira pergunta?", "answer": "resposta1"},
+                    {"question": "Qual é a segunda pergunta?", "answer": "resposta2"},
+                    {"question": "Qual é a terceira pergunta?", "answer": "resposta3"},
+                    {"question": "Qual é a quarta pergunta?", "answer": "resposta4"},
+                    {"question": "Qual é a quinta pergunta?", "answer": "resposta5"}
+                ]
+            },
+            'feedback': []
+        }
+    }
+    
+    # Adicionar outros cursos
+    for i in range(2, 11):
+        st.session_state.courses_db[f'curso{i}'] = {
             'name': f'Curso {i}',
             'topics': "",
             'lessons': {},
             'quizzes': {},
             'feedback': []
-        } for i in range(1, 11)
-    }
-    
-    # Adicionar exemplo de lição com vídeo do YouTube
-    st.session_state.courses_db['curso1']['lessons'][1] = {
-        'video': {
-            'details': {"Type": "youtube"},
-            'file_key': "curso1_lesson_1_video"
         }
-    }
 
 # Estilização
 st.markdown("""
@@ -123,6 +152,13 @@ st.markdown("""
         left: 0;
         width: 100%;
         height: 100%;
+        pointer-events: none;
+    }
+    .quiz-container {
+        margin-top: 2rem;
+        padding: 1rem;
+        border-radius: 10px;
+        background-color: #f0f2f6;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -142,7 +178,6 @@ def save_uploaded_file(uploaded_file, course, lesson_number, file_type, video_ur
     
     try:
         if file_type == 'video' and video_url:
-            # Processar URL do YouTube
             video_id = extract_youtube_id(video_url)
             if video_id:
                 st.session_state.course_files[file_key] = {
@@ -154,7 +189,6 @@ def save_uploaded_file(uploaded_file, course, lesson_number, file_type, video_ur
                 return False
                 
         elif file_type == 'pdf' and pdf_url:
-            # Processar URL do Google Drive
             drive_id = extract_drive_id(pdf_url)
             if drive_id:
                 st.session_state.course_files[file_key] = {
@@ -165,7 +199,6 @@ def save_uploaded_file(uploaded_file, course, lesson_number, file_type, video_ur
                 st.error("URL do Google Drive inválida")
                 return False
                 
-        # Atualizar banco de dados
         if 'lessons' not in st.session_state.courses_db[course]:
             st.session_state.courses_db[course]['lessons'] = {}
         if lesson_number not in st.session_state.courses_db[course]['lessons']:
@@ -225,11 +258,15 @@ def logout():
     st.session_state.session_id = None
 
 def save_quiz(course, lesson_number, questions):
+    if course not in st.session_state.courses_db:
+        st.session_state.courses_db[course] = {'quizzes': {}}
     st.session_state.courses_db[course]['quizzes'][lesson_number] = questions
 
 def check_quiz_answers(course, lesson_number, user_answers):
-    correct_answers = st.session_state.courses_db[course]['quizzes'][lesson_number]
-    return [ua.lower() == ca['answer'].lower() for ua, ca in zip(user_answers, correct_answers)]
+    if course in st.session_state.courses_db and lesson_number in st.session_state.courses_db[course]['quizzes']:
+        correct_answers = st.session_state.courses_db[course]['quizzes'][lesson_number]
+        return [ua.lower().strip() == ca['answer'].lower().strip() for ua, ca in zip(user_answers, correct_answers)]
+    return []
 
 def main():
     col1, col2, col3 = st.columns([1,3,1])
@@ -342,15 +379,15 @@ def manage_content():
     lesson_number = st.selectbox('📚 Selecione o número da aula', range(1, 21))
     
     st.subheader("📹 Vídeo da Aula")
-    video_url = st.text_input("Cole o link do YouTube para a aula", 
-                             help="Ex: https://youtu.be/seu-video-id")
+    st.info("Cole o link completo do YouTube (ex: https://youtube.com/watch?v=XXXX ou https://youtu.be/XXXX)")
+    video_url = st.text_input("Link do YouTube:", key="video_url")
     if video_url and st.button("Salvar Vídeo"):
         if save_uploaded_file(None, course, lesson_number, 'video', video_url=video_url):
             st.success("Vídeo adicionado com sucesso!")
     
     st.subheader("📄 PDF da Aula")
-    pdf_url = st.text_input("Cole o link do Google Drive para o PDF", 
-                           help="Ex: https://drive.google.com/file/d/seu-arquivo-id")
+    st.info("Cole o link de compartilhamento do Google Drive (ex: https://drive.google.com/file/d/XXXX/view)")
+    pdf_url = st.text_input("Link do Google Drive:", key="pdf_url")
     if pdf_url and st.button("Salvar PDF"):
         if save_uploaded_file(None, course, lesson_number, 'pdf', pdf_url=pdf_url):
             st.success("PDF adicionado com sucesso!")
@@ -360,24 +397,34 @@ def manage_content():
 
 def manage_quiz(course, lesson_number):
     st.write("Criar/Editar Quiz")
-    if lesson_number in st.session_state.courses_db[course]['quizzes']:
-        questions = st.session_state.courses_db[course]['quizzes'][lesson_number]
-    else:
-        questions = [{"question": "", "answer": ""} for _ in range(5)]
+    
+    # Carregar quiz existente ou criar novo
+    current_quiz = st.session_state.courses_db[course].get('quizzes', {}).get(lesson_number, [])
+    if not current_quiz:
+        current_quiz = [{"question": "", "answer": ""} for _ in range(5)]
     
     updated_questions = []
-    for i, q in enumerate(questions):
-        col1, col2 = st.columns([3, 2])
-        with col1:
-            question = st.text_input(f"📝 Pergunta {i+1}", value=q['question'])
-        with col2:
-            answer = st.text_input(f"✅ Resposta {i+1}", value=q['answer'])
+    for i in range(5):  # Sempre 5 perguntas
+        st.markdown(f"### Pergunta {i+1}")
+        question = st.text_input(
+            "Digite a pergunta:",
+            value=current_quiz[i].get('question', '') if i < len(current_quiz) else '',
+            key=f"q_{course}_{lesson_number}_{i}"
+        )
+        answer = st.text_input(
+            "Digite a resposta:",
+            value=current_quiz[i].get('answer', '') if i < len(current_quiz) else '',
+            key=f"a_{course}_{lesson_number}_{i}"
+        )
         if question and answer:
             updated_questions.append({"question": question, "answer": answer})
     
-    if len(updated_questions) == 5 and st.button("💾 Salvar Quiz"):
-        save_quiz(course, lesson_number, updated_questions)
-        st.success(f"Quiz da aula {lesson_number} salvo com sucesso!")
+    if st.button("💾 Salvar Quiz", key=f"save_quiz_{course}_{lesson_number}"):
+        if len(updated_questions) == 5:
+            save_quiz(course, lesson_number, updated_questions)
+            st.success("Quiz salvo com sucesso!")
+        else:
+            st.error("Por favor, preencha todas as perguntas e respostas.")
 
 def show_student_courses(permissions):
     st.markdown('<p class="medium-font">Meus Cursos</p>', unsafe_allow_html=True)
@@ -391,20 +438,21 @@ def show_course_content(course_selection):
     st.write("📚 Tópicos do curso:")
     st.write(course['topics'])
     
+    # Inicializar progresso se necessário
     if 'progress' not in st.session_state.users_db[st.session_state.user_email]:
         st.session_state.users_db[st.session_state.user_email]['progress'] = {}
     if course_selection not in st.session_state.users_db[st.session_state.user_email]['progress']:
         st.session_state.users_db[st.session_state.user_email]['progress'][course_selection] = 1
+        
     current_lesson = st.session_state.users_db[st.session_state.user_email]['progress'][course_selection]
-    
     available_lessons = list(range(1, current_lesson + 1))
     selected_lesson = st.selectbox("📚 Selecione a aula", available_lessons, index=len(available_lessons)-1)
     
     if selected_lesson in course['lessons']:
         st.subheader(f"📚 Aula {selected_lesson}")
-        lesson_content = course['lessons'][selected_lesson]   
+        lesson_content = course['lessons'][selected_lesson]
         
-        # Exibir vídeo
+        # Exibir vídeo do YouTube
         if 'video' in lesson_content:
             try:
                 video_data = get_file_content(lesson_content['video']['file_key'])
@@ -412,17 +460,19 @@ def show_course_content(course_selection):
                     video_id = video_data['content']
                     st.markdown(f"""
                         <div class="iframe-container">
-                            <iframe src="https://www.youtube.com/embed/{video_id}?rel=0&modestbranding=1"
-                                    frameborder="0"
-                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                    allowfullscreen>
-                            </iframe>
+                            <iframe 
+                                src="https://www.youtube.com/embed/{video_id}?rel=0&modestbranding=1&controls=1"
+                                frameborder="0"
+                                allow="accelerometer; encrypted-media; gyroscope; picture-in-picture"
+                                allowfullscreen
+                                style="pointer-events: auto;"
+                            ></iframe>
                         </div>
                         """, unsafe_allow_html=True)
             except Exception as e:
-                st.error("Não foi possível carregar o vídeo.")
+                st.error("Erro ao carregar o vídeo. Por favor, contate o administrador.")
         
-        # Exibir PDF
+        # Exibir PDF do Google Drive
         if 'pdf' in lesson_content:
             try:
                 pdf_data = get_file_content(lesson_content['pdf']['file_key'])
@@ -430,53 +480,54 @@ def show_course_content(course_selection):
                     drive_id = pdf_data['content']
                     st.markdown(f"""
                         <div class="iframe-container">
-                            <iframe src="https://drive.google.com/file/d/{drive_id}/preview"
-                                    frameborder="0"
-                                    allowfullscreen>
-                            </iframe>
+                            <iframe 
+                                src="https://drive.google.com/file/d/{drive_id}/preview"
+                                frameborder="0"
+                                allowfullscreen
+                                style="pointer-events: auto;"
+                            ></iframe>
                         </div>
                         """, unsafe_allow_html=True)
             except Exception as e:
-                st.error("Não foi possível carregar o PDF.")
+                st.error("Erro ao carregar o PDF. Por favor, contate o administrador.")
         
         # Exibir Quiz
-        if course_selection in st.session_state.courses_db and selected_lesson in st.session_state.courses_db[course_selection]['quizzes']:
+        if selected_lesson in course.get('quizzes', {}):
             st.markdown("---")
+            st.markdown('<div class="quiz-container">', unsafe_allow_html=True)
             st.subheader("❓ Quiz da Aula")
             show_quiz(course_selection, selected_lesson)
+            st.markdown('</div>', unsafe_allow_html=True)
     else:
-        st.write("🎉 Você completou todas as aulas disponíveis!")
+        st.info("🎉 Todas as aulas disponíveis foram concluídas!")
 
 def show_quiz(course_selection, current_lesson):
     quiz_data = st.session_state.courses_db[course_selection]['quizzes'][current_lesson]
-    st.write("⚠️ Responda todas as perguntas corretamente para desbloquear a próxima aula")
+    st.write("⚠️ Responda todas as perguntas corretamente para avançar para a próxima aula")
     
-    # Criar container para o formulário do quiz
     with st.form(key=f"quiz_form_{course_selection}_{current_lesson}"):
         user_answers = []
-        
-        # Exibir cada pergunta
         for i, q in enumerate(quiz_data):
             st.write(f"**Pergunta {i+1}:** {q['question']}")
-            answer = st.text_input("Sua resposta:", key=f"quiz_{course_selection}_{current_lesson}_{i}")
+            answer = st.text_input(
+                "Sua resposta:",
+                key=f"quiz_answer_{course_selection}_{current_lesson}_{i}"
+            )
             user_answers.append(answer)
         
-        # Botão de submissão
         submit_quiz = st.form_submit_button("📝 Enviar Respostas")
         
         if submit_quiz:
-            if all(answer.strip() for answer in user_answers):  # Verificar se todas as respostas foram preenchidas
+            if all(answer.strip() for answer in user_answers):
                 results = check_quiz_answers(course_selection, current_lesson, user_answers)
                 all_correct = all(results)
                 
-                # Mostrar resultados
                 for i, (is_correct, question) in enumerate(zip(results, quiz_data)):
                     if is_correct:
                         st.success(f"✅ Pergunta {i+1}: Correta!")
                     else:
                         st.error(f"❌ Pergunta {i+1}: Incorreta. A resposta correta é: {question['answer']}")
                 
-                # Atualizar progresso se todas estiverem corretas
                 if all_correct:
                     st.balloons()
                     st.success("🎉 Parabéns! Você completou o quiz com sucesso!")
@@ -484,7 +535,7 @@ def show_quiz(course_selection, current_lesson):
                     if current_lesson == st.session_state.users_db[st.session_state.user_email]['progress'][course_selection]:
                         st.session_state.users_db[st.session_state.user_email]['progress'][course_selection] += 1
                         st.info("📚 Próxima aula desbloqueada!")
-                        st.rerun()
+                        st.experimental_rerun()
                 else:
                     st.warning("⚠️ Tente novamente. Você precisa acertar todas as perguntas para avançar.")
             else:
@@ -492,10 +543,10 @@ def show_quiz(course_selection, current_lesson):
 
 def show_student_progress(permissions):
     st.markdown('<p class="medium-font">Meu Progresso</p>', unsafe_allow_html=True)
-    progress = st.session_state.users_db[st.session_state.user_email].get('progress', {})
     
     for course in permissions:
         if course in st.session_state.courses_db:
+            progress = st.session_state.users_db[st.session_state.user_email].get('progress', {})
             current_lesson = progress.get(course, 1)
             total_lessons = len(st.session_state.courses_db[course]['lessons'])
             
@@ -506,7 +557,7 @@ def show_student_progress(permissions):
                     st.write(f"🎓 {st.session_state.courses_db[course]['name']}")
                     st.progress(progress_percentage)
                 with col2:
-                    st.write(f"Aula {current_lesson} de {total_lessons}")
+                    st.write(f"Aula {current_lesson-1} de {total_lessons}")
             else:
                 st.info(f"🎓 {st.session_state.courses_db[course]['name']}: Aguardando conteúdo")
 
@@ -518,20 +569,22 @@ def show_help():
     1. **Aulas e Conteúdo**
         - Cada curso é composto por aulas sequenciais
         - As aulas incluem vídeos do YouTube e documentos do Google Drive
-        - O conteúdo é protegido e só pode ser acessado dentro da plataforma
+        - O conteúdo é protegido e só pode ser acessado através desta plataforma
+        - Os vídeos e documentos não podem ser baixados ou compartilhados
     
     2. **Sistema de Quiz**
         - Após cada aula, há um quiz com 5 perguntas
-        - Você precisa acertar todas as perguntas para desbloquear a próxima aula
+        - Você precisa acertar todas as perguntas para avançar
         - Pode tentar o quiz quantas vezes precisar
+        - As respostas são verificadas automaticamente
     
     3. **Progresso**
         - Seu progresso é salvo automaticamente
         - Pode acompanhar seu avanço na aba "Progresso"
-        - Aulas anteriores permanecem disponíveis para revisão
+        - Aulas anteriores ficam disponíveis para revisão
     
     4. **Feedback**
-        - Ao concluir o curso, você pode deixar seu feedback
+        - Ao concluir cada aula, você pode deixar seu feedback
         - Os feedbacks ajudam a melhorar o conteúdo
         - Pode ver feedbacks de outros alunos na aba específica
     
@@ -540,8 +593,8 @@ def show_help():
         - Se tiver dúvidas sobre o conteúdo, use o espaço de feedback
         - Mantenha suas credenciais de acesso em segurança
     
-    🔐 Observação: O compartilhamento de links diretos para os vídeos ou documentos não é permitido.
-    Os materiais só podem ser acessados através desta plataforma.
+    🔐 Observação: Por questões de segurança e direitos autorais, o compartilhamento
+    direto dos materiais não é permitido. Todo acesso deve ser feito através desta plataforma.
     """)
 
 if __name__ == '__main__':
