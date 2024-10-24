@@ -39,9 +39,9 @@ def extract_drive_id(url):
             return match.group(1)
     return None
 
-# Função para gerar URL de download do Google Drive
+# Função atualizada para gerar URL de download do Google Drive
 def get_drive_download_link(file_id):
-    return f"https://drive.google.com/uc?export=download&id={file_id}"
+    return f"https://drive.google.com/file/d/{file_id}/view"
 
 # Inicialização do estado da sessão
 if 'initialized' not in st.session_state:
@@ -149,7 +149,7 @@ st.markdown("""
         height: 100%;
     }
     .download-button {
-        background-color: #3498db;
+        background-color: #4CAF50;
         border: none;
         color: white;
         padding: 8px 16px;
@@ -163,10 +163,10 @@ st.markdown("""
         box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         transition: all 0.3s ease;
         width: auto;
-        max-width: 250px;
+        max-width: 200px;
     }
     .download-button:hover {
-        background-color: #2980b9;
+        background-color: #45a049;
         box-shadow: 0 4px 8px rgba(0,0,0,0.2);
         transform: translateY(-1px);
     }
@@ -270,7 +270,7 @@ def check_quiz_answers(course, lesson_number, user_answers):
     return []
 
 def main():
-    st.markdown('<p class="big-font">Sistema de Cursos Online</p>', unsafe_allow_html=True)
+    st.markdown('<p class="big-font">Justificações Acadêmicas - Cursos Online</p>', unsafe_allow_html=True)
     
     if 'logged_in' not in st.session_state:
         st.session_state.logged_in = False
@@ -389,7 +389,7 @@ def manage_content():
     if pdf_url and st.button("Salvar PDF"):
         if save_uploaded_file(None, course, lesson_number, 'pdf', pdf_url=pdf_url):
             st.success("PDF adicionado com sucesso!")
-    
+
     st.subheader("❓ Quiz da Aula")
     manage_quiz(course, lesson_number)
 
@@ -464,17 +464,17 @@ def show_course_content(course_selection):
                     """, unsafe_allow_html=True)
                 st.markdown("---")
         
-        # Botão de download do PDF
+        # Exibir botão de download do PDF
         if 'pdf' in lesson_content:
             pdf_data = get_file_content(lesson_content['pdf']['file_key'])
             if pdf_data and pdf_data['type'] == 'google_drive':
                 drive_id = pdf_data['content']
-                download_link = get_drive_download_link(drive_id)
+                view_link = get_drive_download_link(drive_id)
                 col1, col2, col3 = st.columns([2,1,2])
                 with col2:
                     st.markdown(f"""
-                        <a href="{download_link}" class="download-button" target="_blank">
-                            📥 Material PDF
+                        <a href="{view_link}" target="_blank" class="download-button">
+                            📥 Ver Material
                         </a>
                         """, unsafe_allow_html=True)
                 st.markdown("---")
@@ -522,7 +522,7 @@ def show_quiz(course_selection, current_lesson):
                     if current_lesson == st.session_state.users_db[st.session_state.user_email]['progress'][course_selection]:
                         st.session_state.users_db[st.session_state.user_email]['progress'][course_selection] += 1
                         st.info("📚 Próxima aula desbloqueada!")
-                        st.experimental_rerun()
+                        st.rerun()  # Aqui está a correção
                 else:
                     st.warning("⚠️ Tente novamente. Você precisa acertar todas as perguntas para avançar.")
             else:
